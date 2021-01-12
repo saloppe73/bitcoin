@@ -690,7 +690,7 @@ void PeerManager::PushNodeVersion(CNode& pnode, int64_t nTime)
     // peer.
     ServiceFlags nLocalNodeServices = pnode.GetLocalServices();
     uint64_t nonce = pnode.GetLocalNonce();
-    int nNodeStartingHeight = pnode.GetMyStartingHeight();
+    const int nNodeStartingHeight{m_best_height};
     NodeId nodeid = pnode.GetId();
     CAddress addr = pnode.addr;
 
@@ -1294,8 +1294,9 @@ void PeerManager::NewPoWValidBlock(const CBlockIndex *pindex, const std::shared_
  * Update our best height and announce any block hashes which weren't previously
  * in ::ChainActive() to our peers.
  */
-void PeerManager::UpdatedBlockTip(const CBlockIndex *pindexNew, const CBlockIndex *pindexFork, bool fInitialDownload) {
-    m_connman.SetBestHeight(pindexNew->nHeight);
+void PeerManager::UpdatedBlockTip(const CBlockIndex* pindexNew, const CBlockIndex* pindexFork, bool fInitialDownload)
+{
+    m_best_height = pindexNew->nHeight;
     SetServiceFlagsIBDCache(!fInitialDownload);
 
     // Don't relay inventory during initial block download.
@@ -3711,7 +3712,6 @@ void PeerManager::ProcessMessage(CNode& pfrom, const std::string& msg_type, CDat
         vRecv >> newFeeFilter;
         if (MoneyRange(newFeeFilter)) {
             if (pfrom.m_tx_relay != nullptr) {
-                LOCK(pfrom.m_tx_relay->cs_feeFilter);
                 pfrom.m_tx_relay->minFeeFilter = newFeeFilter;
             }
             LogPrint(BCLog::NET, "received: feefilter of %s from peer=%d\n", CFeeRate(newFeeFilter).ToString(), pfrom.GetId());
@@ -4387,11 +4387,7 @@ bool PeerManager::SendMessages(CNode* pto)
                 if (fSendTrickle && pto->m_tx_relay->fSendMempool) {
                     auto vtxinfo = m_mempool.infoAll();
                     pto->m_tx_relay->fSendMempool = false;
-                    CFeeRate filterrate;
-                    {
-                        LOCK(pto->m_tx_relay->cs_feeFilter);
-                        filterrate = CFeeRate(pto->m_tx_relay->minFeeFilter);
-                    }
+                    const CFeeRate filterrate{pto->m_tx_relay->minFeeFilter.load()};
 
                     LOCK(pto->m_tx_relay->cs_filter);
 
@@ -4425,11 +4421,7 @@ bool PeerManager::SendMessages(CNode* pto)
                     for (std::set<uint256>::iterator it = pto->m_tx_relay->setInventoryTxToSend.begin(); it != pto->m_tx_relay->setInventoryTxToSend.end(); it++) {
                         vInvTx.push_back(it);
                     }
-                    CFeeRate filterrate;
-                    {
-                        LOCK(pto->m_tx_relay->cs_feeFilter);
-                        filterrate = CFeeRate(pto->m_tx_relay->minFeeFilter);
-                    }
+                    const CFeeRate filterrate{pto->m_tx_relay->minFeeFilter.load()};
                     // Topologically and fee-rate sort the inventory we send for privacy and priority reasons.
                     // A heap is used so that not all items need sorting if only a few are being sent.
                     CompareInvMempoolOrder compareInvMempoolOrder(&m_mempool, state.m_wtxid_relay);

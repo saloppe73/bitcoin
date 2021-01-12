@@ -1,4 +1,4 @@
-// Copyright (c) 2009-2019 The Bitcoin Core developers
+// Copyright (c) 2009-2020 The Bitcoin Core developers
 // Distributed under the MIT software license, see the accompanying
 // file COPYING or http://www.opensource.org/licenses/mit-license.php.
 
@@ -30,7 +30,7 @@ bool DecodeHexBlockHeader(CBlockHeader&, const std::string& hex_header);
 /**
  * Parse a hex string into 256 bits
  * @param[in] strHex a hex-formatted, 64-character string
- * @param[out] result the result of the parasing
+ * @param[out] result the result of the parsing
  * @returns true if successful, false if not
  *
  * @see ParseHashV for an RPC-oriented version of this

@@ -26,6 +26,7 @@
 #include <interfaces/chain.h>
 #include <interfaces/node.h>
 #include <key.h>
+#include <mapport.h>
 #include <miner.h>
 #include <net.h>
 #include <net_permissions.h>
@@ -468,6 +469,11 @@ void SetupServerArgs(NodeContext& node)
 #else
     hidden_args.emplace_back("-upnp");
 #endif
+#ifdef USE_NATPMP
+    argsman.AddArg("-natpmp", strprintf("Use NAT-PMP to map the listening port (default: %s)", DEFAULT_NATPMP ? "1 when listening and no -proxy" : "0"), ArgsManager::ALLOW_BOOL, OptionsCategory::CONNECTION);
+#else
+    hidden_args.emplace_back("-natpmp");
+#endif // USE_NATPMP
     argsman.AddArg("-whitebind=<[permissions@]addr>", "Bind to the given address and add permission flags to the peers connecting to it. "
         "Use [host]:port notation for IPv6. Allowed permissions: " + Join(NET_PERMISSIONS_DOC, ", ") + ". "
         "Specify multiple permissions separated by commas (default: download,noban,mempool,relay). Can be specified multiple times.", ArgsManager::ALLOW_ANY, OptionsCategory::CONNECTION);
@@ -812,10 +818,13 @@ void InitParameterInteraction(ArgsManager& args)
         // to protect privacy, do not listen by default if a default proxy server is specified
         if (args.SoftSetBoolArg("-listen", false))
             LogPrintf("%s: parameter interaction: -proxy set -> setting -listen=0\n", __func__);
-        // to protect privacy, do not use UPNP when a proxy is set. The user may still specify -listen=1
+        // to protect privacy, do not map ports when a proxy is set. The user may still specify -listen=1
         // to listen locally, so don't rely on this happening through -listen below.
         if (args.SoftSetBoolArg("-upnp", false))
             LogPrintf("%s: parameter interaction: -proxy set -> setting -upnp=0\n", __func__);
+        if (args.SoftSetBoolArg("-natpmp", false)) {
+            LogPrintf("%s: parameter interaction: -proxy set -> setting -natpmp=0\n", __func__);
+        }
         // to protect privacy, do not discover addresses by default
         if (args.SoftSetBoolArg("-discover", false))
             LogPrintf("%s: parameter interaction: -proxy set -> setting -discover=0\n", __func__);
@@ -825,6 +834,9 @@ void InitParameterInteraction(ArgsManager& args)
         // do not map ports or try to retrieve public IP when not listening (pointless)
         if (args.SoftSetBoolArg("-upnp", false))
             LogPrintf("%s: parameter interaction: -listen=0 -> setting -upnp=0\n", __func__);
+        if (args.SoftSetBoolArg("-natpmp", false)) {
+            LogPrintf("%s: parameter interaction: -listen=0 -> setting -natpmp=0\n", __func__);
+        }
         if (args.SoftSetBoolArg("-discover", false))
             LogPrintf("%s: parameter interaction: -listen=0 -> setting -discover=0\n", __func__);
         if (args.SoftSetBoolArg("-listenonion", false))
@@ -1894,13 +1906,12 @@ bool AppInitMain(const util::Ref& context, NodeContext& node, interfaces::BlockA
         }
     }
     LogPrintf("nBestHeight = %d\n", chain_active_height);
+    if (node.peerman) node.peerman->SetBestHeight(chain_active_height);
 
     Discover();
 
-    // Map ports with UPnP
-    if (args.GetBoolArg("-upnp", DEFAULT_UPNP)) {
-        StartMapPort();
-    }
+    // Map ports with UPnP or NAT-PMP.
+    StartMapPort(args.GetBoolArg("-upnp", DEFAULT_UPNP), gArgs.GetBoolArg("-natpmp", DEFAULT_NATPMP));
 
     CConnman::Options connOptions;
     connOptions.nLocalServices = nLocalServices;
@@ -1909,7 +1920,6 @@ bool AppInitMain(const util::Ref& context, NodeContext& node, interfaces::BlockA
     connOptions.m_max_outbound_block_relay = std::min(MAX_BLOCK_RELAY_ONLY_CONNECTIONS, connOptions.nMaxConnections-connOptions.m_max_outbound_full_relay);
     connOptions.nMaxAddnode = MAX_ADDNODE_CONNECTIONS;
     connOptions.nMaxFeeler = MAX_FEELER_CONNECTIONS;
-    connOptions.nBestHeight = chain_active_height;
     connOptions.uiInterface = &uiInterface;
     connOptions.m_banman = node.banman.get();
     connOptions.m_msgproc = node.peerman.get();
