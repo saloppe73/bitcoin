@@ -4,7 +4,7 @@
 
 # Pattern rule to print variables, e.g. make print-top_srcdir
 print-%:
-	@echo $* = $($*)
+	@echo '$*'='$($*)'
 
 DIST_SUBDIRS = secp256k1 univalue
 
@@ -144,10 +144,12 @@ BITCOIN_CORE_H = \
   core_memusage.h \
   cuckoocache.h \
   dbwrapper.h \
+  external_signer.h \
   flatfile.h \
   fs.h \
   httprpc.h \
   httpserver.h \
+  i2p.h \
   index/base.h \
   index/blockfilterindex.h \
   index/disktxpos.h \
@@ -173,6 +175,7 @@ BITCOIN_CORE_H = \
   netaddress.h \
   netbase.h \
   netmessagemaker.h \
+  node/blockstorage.h \
   node/coin.h \
   node/coinstats.h \
   node/context.h \
@@ -181,7 +184,6 @@ BITCOIN_CORE_H = \
   node/ui_interface.h \
   node/utxo_snapshot.h \
   noui.h \
-  optional.h \
   outputtype.h \
   policy/feerate.h \
   policy/fees.h \
@@ -224,29 +226,33 @@ BITCOIN_CORE_H = \
   timedata.h \
   torcontrol.h \
   txdb.h \
-  txrequest.h \
   txmempool.h \
+  txorphanage.h \
+  txrequest.h \
   undo.h \
   util/asmap.h \
   util/bip32.h \
   util/bytevectorhash.h \
   util/check.h \
+  util/epochguard.h \
   util/error.h \
   util/fees.h \
+  util/getuniquepath.h \
   util/golombrice.h \
   util/hasher.h \
   util/macros.h \
-  util/memory.h \
   util/message.h \
   util/moneystr.h \
   util/rbf.h \
-  util/ref.h \
+  util/readwritefile.h \
   util/settings.h \
+  util/sock.h \
   util/spanparsing.h \
   util/string.h \
   util/system.h \
   util/threadnames.h \
   util/time.h \
+  util/tokenpipe.h \
   util/trace.h \
   util/translation.h \
   util/ui_change_type.h \
@@ -263,6 +269,7 @@ BITCOIN_CORE_H = \
   wallet/crypter.h \
   wallet/db.h \
   wallet/dump.h \
+  wallet/external_signer_scriptpubkeyman.h \
   wallet/feebumper.h \
   wallet/fees.h \
   wallet/ismine.h \
@@ -294,7 +301,7 @@ libbitcoin_util_a-clientversion.$(OBJEXT): obj/build.h
 # Contains code accessing mempool and chain state that is meant to be separated
 # from wallet and gui code (see node/README.md). Shared code should go in
 # libbitcoin_common or libbitcoin_util libraries, instead.
-libbitcoin_server_a_CPPFLAGS = $(AM_CPPFLAGS) $(BITCOIN_INCLUDES) $(MINIUPNPC_CPPFLAGS) $(EVENT_CFLAGS) $(EVENT_PTHREADS_CFLAGS)
+libbitcoin_server_a_CPPFLAGS = $(AM_CPPFLAGS) $(BITCOIN_INCLUDES) $(MINIUPNPC_CPPFLAGS) $(NATPMP_CPPFLAGS) $(EVENT_CFLAGS) $(EVENT_PTHREADS_CFLAGS)
 libbitcoin_server_a_CXXFLAGS = $(AM_CXXFLAGS) $(PIE_FLAGS)
 libbitcoin_server_a_SOURCES = \
   addrdb.cpp \
@@ -308,6 +315,7 @@ libbitcoin_server_a_SOURCES = \
   flatfile.cpp \
   httprpc.cpp \
   httpserver.cpp \
+  i2p.cpp \
   index/base.cpp \
   index/blockfilterindex.cpp \
   index/txindex.cpp \
@@ -316,6 +324,7 @@ libbitcoin_server_a_SOURCES = \
   miner.cpp \
   net.cpp \
   net_processing.cpp \
+  node/blockstorage.cpp \
   node/coin.cpp \
   node/coinstats.cpp \
   node/context.cpp \
@@ -341,8 +350,9 @@ libbitcoin_server_a_SOURCES = \
   timedata.cpp \
   torcontrol.cpp \
   txdb.cpp \
-  txrequest.cpp \
   txmempool.cpp \
+  txorphanage.cpp \
+  txrequest.cpp \
   validation.cpp \
   validationinterface.cpp \
   versionbits.cpp \
@@ -377,6 +387,7 @@ libbitcoin_wallet_a_SOURCES = \
   wallet/crypter.cpp \
   wallet/db.cpp \
   wallet/dump.cpp \
+  wallet/external_signer_scriptpubkeyman.cpp \
   wallet/feebumper.cpp \
   wallet/fees.cpp \
   wallet/interfaces.cpp \
@@ -508,6 +519,7 @@ libbitcoin_common_a_SOURCES = \
   compressor.cpp \
   core_read.cpp \
   core_write.cpp \
+  external_signer.cpp \
   key.cpp \
   key_io.cpp \
   merkleblock.cpp \
@@ -520,6 +532,7 @@ libbitcoin_common_a_SOURCES = \
   protocol.cpp \
   psbt.cpp \
   rpc/rawtransaction_util.cpp \
+  rpc/external_signer.cpp \
   rpc/util.cpp \
   scheduler.cpp \
   script/descriptor.cpp \
@@ -539,7 +552,6 @@ libbitcoin_util_a_SOURCES = \
   support/lockedpool.cpp \
   chainparamsbase.cpp \
   clientversion.cpp \
-  compat/glibc_sanity.cpp \
   compat/glibcxx_sanity.cpp \
   compat/strnlen.cpp \
   fs.cpp \
@@ -556,17 +568,21 @@ libbitcoin_util_a_SOURCES = \
   util/bytevectorhash.cpp \
   util/error.cpp \
   util/fees.cpp \
+  util/getuniquepath.cpp \
   util/hasher.cpp \
+  util/sock.cpp \
   util/system.cpp \
   util/message.cpp \
   util/moneystr.cpp \
   util/rbf.cpp \
+  util/readwritefile.cpp \
   util/settings.cpp \
   util/threadnames.cpp \
   util/spanparsing.cpp \
   util/strencodings.cpp \
   util/string.cpp \
   util/time.cpp \
+  util/tokenpipe.cpp \
   $(BITCOIN_CORE_H)
 
 if USE_LIBEVENT
@@ -683,7 +699,7 @@ endif
 bitcoin_util_SOURCES = bitcoin-util.cpp
 bitcoin_util_CPPFLAGS = $(AM_CPPFLAGS) $(BITCOIN_INCLUDES)
 bitcoin_util_CXXFLAGS = $(AM_CXXFLAGS) $(PIE_FLAGS)
-bitcoin_util_LDFLAGS = $(RELDFLAGS) $(AM_LDFLAGS) $(LIBTOOL_APP_LDFLAGS)
+bitcoin_util_LDFLAGS = $(RELDFLAGS) $(AM_LDFLAGS) $(LIBTOOL_APP_LDFLAGS) $(PTHREAD_FLAGS)
 
 if TARGET_WINDOWS
 bitcoin_util_SOURCES += bitcoin-util-res.rc
